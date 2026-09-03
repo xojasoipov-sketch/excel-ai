@@ -13,7 +13,7 @@ services:
     runtime: python
     plan: free
     region: frankfurt
-    branch: web-saas
+    branch: main
     buildCommand: pip install -r backend/requirements.txt && npm --prefix frontend ci && npm --prefix frontend run build
     startCommand: cd backend && uvicorn app.main:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /api/health
