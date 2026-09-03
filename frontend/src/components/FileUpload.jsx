@@ -77,13 +77,13 @@ const FileUpload = ({ onFileUpload, loading, error }) => {
       />
       <label htmlFor="file-input">
         <FiUpload />
-        <h2>Upload Spreadsheet</h2>
-        <p>Drag & drop your spreadsheet file here or click to browse</p>
+        <h2>Excel faylingizni yuklang</h2>
+        <p>Faylni bu yerga tashlang yoki tanlash uchun bosing</p>
         <p className="supported-formats">
-          Supported formats: XLSX, XLS, CSV, TSV, ODS and more
+          Qo‘llab-quvvatlanadi: XLSX, XLS, CSV, TSV, ODS
         </p>
         {selectedFile && (
-          <p className="selected-file">Selected: {selectedFile.name}</p>
+          <p className="selected-file">Tanlangan: {selectedFile.name}</p>
         )}
       </label>
       {error && <p className="error">{error}</p>}
@@ -91,7 +91,7 @@ const FileUpload = ({ onFileUpload, loading, error }) => {
         onClick={handleUpload} 
         disabled={!selectedFile || loading}
       >
-        {loading ? 'Uploading...' : 'Upload'}
+        {loading ? 'Yuklanmoqda...' : 'Faylni ochish'}
       </button>
     </div>
   );

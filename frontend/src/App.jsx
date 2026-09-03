@@ -1,160 +1,102 @@
-import React, { useState, useEffect } from 'react';
-import FileUpload from './components/FileUpload';
-import ExcelViewer from './components/ExcelViewer';
-import ChatInterface from './components/ChatInterface';
+import React, { useCallback, useEffect, useState } from 'react';
+import { BrowserRouter, Link, Navigate, Route, Routes, useLocation } from 'react-router-dom';
+import Admin from './pages/Admin';
+import Billing from './pages/Billing';
+import Landing from './pages/Landing';
+import Login from './pages/Login';
+import Workspace from './pages/Workspace';
+import { apiFetch } from './lib/api';
+import { signOut, useSession } from './lib/supabase';
 import './App.css';
+import './styles/shell.css';
 
-function App() {
-  const [clientId, setClientId] = useState(null);
-  const [excelData, setExcelData] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
-  const [socket, setSocket] = useState(null);
-  const [messages, setMessages] = useState([]);
+function TopBar({ session, profile }) {
+  const { pathname } = useLocation();
+  const isPro = profile?.is_owner
+    || profile?.plan === 'pro'
+    || (profile?.pro_until && new Date(profile.pro_until) > new Date());
 
-  // Initialize WebSocket connection when clientId is set
-  useEffect(() => {
-    if (!clientId) return;
+  return (
+    <header className="topbar">
+      <Link to="/" className="brand">
+        <span className="brand-mark">X</span>
+        <span>ExcelYordamchi <b>AI</b></span>
+      </Link>
 
-    // For WebSocket connections, we still need to use the full URL
-    const ws = new WebSocket(`ws://localhost:8000/ws/${clientId}`);
-    
-    ws.onopen = () => {
-      console.log('WebSocket connected');
-    };
-    
-    ws.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-      
-      if (data.type === 'excel_update') {
-        // Update Excel data when changes are made
-        setExcelData({
-          data: data.data,
-          metadata: data.metadata
-        });
-      } else {
-        // Handle chat messages
-        setMessages(prev => [...prev, {
-          role: 'assistant',
-          content: data.response
-        }]);
-        
-        // If Excel was modified, fetch the latest data
-        if (data.excel_modified) {
-          fetchExcelData();
-        }
-      }
-    };
-    
-    ws.onclose = () => {
-      console.log('WebSocket disconnected');
-    };
-    
-    ws.onerror = (error) => {
-      console.error('WebSocket error:', error);
-      setError('Connection error. Please try again.');
-    };
-    
-    setSocket(ws);
-    
-    // Fetch initial Excel data
-    fetchExcelData();
-    
-    // Clean up WebSocket connection on component unmount
-    return () => {
-      if (ws) {
-        ws.close();
-      }
-    };
-  }, [clientId]);
+      <nav className="topbar-nav">
+        <Link to="/app" className={pathname.startsWith('/app') ? 'active' : ''}>Ilova</Link>
+        <Link to="/billing" className={pathname.startsWith('/billing') ? 'active' : ''}>Narxlar</Link>
+        {profile?.is_owner && (
+          <Link to="/admin" className={pathname.startsWith('/admin') ? 'active' : ''}>Admin</Link>
+        )}
+      </nav>
 
-  const fetchExcelData = async () => {
-    try {
-      const response = await fetch(`http://localhost:8000/excel/${clientId}`);
-      if (!response.ok) {
-        throw new Error('Failed to fetch Excel data');
-      }
-      const data = await response.json();
-      setExcelData(data);
-    } catch (error) {
-      console.error('Error fetching Excel data:', error);
-      setError('Failed to load Excel data. Please try again.');
-    }
-  };
+      <div className="topbar-actions">
+        {session ? (
+          <>
+            <span className={`plan-badge ${isPro ? 'pro' : 'free'}`}>
+              {profile?.is_owner ? 'Admin' : isPro ? 'Pro' : 'Bepul'}
+            </span>
+            <span className="topbar-email">{profile?.email || session.user?.email}</span>
+            <button type="button" className="ghost-btn small" onClick={() => signOut()}>Chiqish</button>
+          </>
+        ) : (
+          <Link to="/login" className="primary-btn small">Kirish</Link>
+        )}
+      </div>
+    </header>
+  );
+}
 
-  const handleFileUpload = async (file) => {
-    console.log('Uploading file:', file.name);
-    setLoading(true);
-    setError(null);
-    
-    try {
-      const formData = new FormData();
-      formData.append('file', file);
-      
-      console.log('Sending file to backend...');
-      const response = await fetch('http://localhost:8000/upload', {
-        method: 'POST',
-        body: formData,
-      });
-      
-      console.log('Response status:', response.status);
-      
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Error response:', errorText);
-        throw new Error(`Failed to upload file: ${response.status} ${errorText}`);
-      }
-      
-      const data = await response.json();
-      console.log('Upload successful, client ID:', data.client_id);
-      setClientId(data.client_id);
-    } catch (error) {
-      console.error('Error uploading file:', error);
-      setError('Failed to upload file. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
+function AppShell() {
+  const { session, loading } = useSession();
+  const [profile, setProfile] = useState(null);
 
-  const sendMessage = (message) => {
-    if (!socket || socket.readyState !== WebSocket.OPEN) {
-      setError('Connection lost. Please refresh the page.');
+  const refreshProfile = useCallback(async () => {
+    if (!session) {
+      setProfile(null);
       return;
     }
-    
-    // Add user message to the chat
-    setMessages(prev => [...prev, {
-      role: 'user',
-      content: message
-    }]);
-    
-    // Send message to the server
-    socket.send(JSON.stringify({ message }));
-  };
+    try {
+      setProfile(await apiFetch('/api/me'));
+    } catch (err) {
+      console.error('Profilni yuklab bo‘lmadi:', err);
+    }
+  }, [session]);
+
+  useEffect(() => { refreshProfile(); }, [refreshProfile]);
+
+  if (loading) {
+    return <div className="app-container"><div className="loading">Yuklanmoqda…</div></div>;
+  }
 
   return (
     <div className="app-container">
-      {!clientId ? (
-        <FileUpload onFileUpload={handleFileUpload} loading={loading} error={error} />
-      ) : (
-        <div className="main-content">
-          <div className="excel-container">
-            {excelData ? (
-              <ExcelViewer data={excelData.data} metadata={excelData.metadata} />
-            ) : (
-              <div className="loading">Loading Excel data...</div>
-            )}
-          </div>
-          <div className="chat-sidebar">
-            <ChatInterface 
-              messages={messages} 
-              onSendMessage={sendMessage} 
-            />
-          </div>
-        </div>
-      )}
+      <TopBar session={session} profile={profile} />
+      <main className="app-main">
+        <Routes>
+          <Route path="/" element={<Landing session={session} />} />
+          <Route path="/login" element={<Login session={session} />} />
+          <Route
+            path="/app"
+            element={<Workspace session={session} profile={profile} onProfileRefresh={refreshProfile} />}
+          />
+          <Route
+            path="/billing"
+            element={<Billing session={session} profile={profile} onProfileRefresh={refreshProfile} />}
+          />
+          <Route path="/admin" element={<Admin session={session} profile={profile} />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </main>
     </div>
   );
 }
 
-export default App;
+export default function App() {
+  return (
+    <BrowserRouter>
+      <AppShell />
+    </BrowserRouter>
+  );
+}

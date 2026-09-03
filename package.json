@@ -1,0 +1,45 @@
+{
+  "name": "excelyordamchi-ai",
+  "version": "0.2.0",
+  "description": "AI assistant for Excel formulas and spreadsheet analysis (web + desktop)",
+  "main": "desktop/main.cjs",
+  "scripts": {
+    "frontend:build": "npm --prefix frontend run build",
+    "frontend:build:desktop": "cross-env-shell BUILD_TARGET=desktop npm --prefix frontend run build",
+    "web:build": "npm --prefix frontend ci && npm --prefix frontend run build",
+    "web:start": "cd backend && uvicorn app.main:app --host 0.0.0.0 --port %PORT%",
+    "desktop": "npm run frontend:build:desktop && electron .",
+    "dist:win": "npm run frontend:build:desktop && electron-builder --win nsis --x64 --publish never"
+  },
+  "devDependencies": {
+    "cross-env": "^7.0.3",
+    "electron": "^37.2.4",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "uz.excelyordamchi.ai",
+    "productName": "ExcelYordamchi AI",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "desktop/**/*",
+      "frontend/dist/**/*",
+      "backend/**/*",
+      "package.json"
+    ],
+    "asarUnpack": [
+      "backend/**"
+    ],
+    "win": {
+      "target": "nsis",
+      "artifactName": "ExcelYordamchiAI-Setup-${version}.${ext}",
+      "signAndEditExecutable": false
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true
+    }
+  }
+}

@@ -1,4 +1,17 @@
-# ExcelFlow - AI-Powered Excel Assistant
+# ExcelYordamchi AI
+
+O‘zbek, rus va ingliz tillarida Excel formulalarini yaratadigan, faylni tahlil qiladigan web-ilova va Telegram bot. Asos: [ExcelFlow](https://github.com/parthvadhadiya/ExcelFlow), MIT litsenziyasi asosida moslashtirilgan.
+
+## Ishga tushirish
+
+1. `backend/.env.example` faylidan `backend/.env` nusxa oling va `DEEPSEEK_API_KEY` ni kiriting.
+2. Backend: `cd backend`, `pip install -r requirements.txt`, so‘ng `uvicorn app.main:app --reload`.
+3. Frontend: `cd frontend`, `npm install`, so‘ng `npm run dev`.
+4. Telegram uchun `TELEGRAM_BOT_TOKEN` ni `.env` ga kiriting va `cd backend; python telegram_bot.py` ni ishga tushiring.
+
+API kalitlar hech qachon GitHub’ga yuborilmaydi.
+
+---
 
 <div align="center">
 

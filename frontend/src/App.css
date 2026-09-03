@@ -1,34 +1,80 @@
-.app-container {
-  width: 100%;
-  height: 100vh;
-  display: flex;
-  flex-direction: column;
-}
+.app-container { width: 100%; height: 100vh; display: flex; flex-direction: column; background: #f7faf8; color: #18251d; font-family: Inter, system-ui, sans-serif; }
+.topbar { height: 62px; background: #fff; border-bottom: 1px solid #e3ebe5; display: flex; justify-content: space-between; align-items: center; padding: 0 25px; }
+.brand { display: flex; align-items: center; gap: 10px; font-size: 19px; font-weight: 650; }.brand b { color: #087b40; }.brand-mark { color: #fff; background: #107c41; width: 28px; height: 28px; display: grid; place-items: center; border-radius: 5px; font-weight: 800; }.topbar-actions { font-size: 13px; color: #526057; display: flex; align-items: center; gap: 7px; }.status-dot { background: #20a65a; height: 8px; width: 8px; border-radius: 50%; }
+.main-content { display: flex; height: 100%; }.workspace-nav { width: 236px; padding: 16px; background: #fff; border-right: 1px solid #e3ebe5; display: flex; flex-direction: column; gap: 18px; }.new-workbook { border: 0; color: #fff; background: #087b40; border-radius: 6px; padding: 12px; text-align: left; font-weight: 650; cursor: pointer; }.workspace-nav nav { display: grid; gap: 5px; }.workspace-nav nav span { padding: 10px; color: #536158; font-size: 14px; border-radius: 6px; }.workspace-nav .nav-active { color: #125e35; background: #eaf5ed; font-weight: 650; }.file-help { margin-top: auto; padding: 13px; border-radius: 8px; background: #f4faf5; color: #52705c; font-size: 13px; }
+.excel-container { flex: 1; height: 100%; overflow: auto; padding: 1rem 1.25rem; }.chat-sidebar { width: 365px; height: 100%; border-left: 1px solid #e3ebe5; background: #fff; }.loading { display: flex; justify-content: center; align-items: center; height: 100%; font-size: 1.2rem; color: #526057; }
+.chat-container { height: 100%; display: flex; flex-direction: column; }.chat-header { padding: 18px; border-bottom: 1px solid #e8eeea; }.chat-header h2 { margin: 0; font-size: 16px; color: #164c2d; }.chat-header p { margin: 5px 0 0; color: #718077; font-size: 12px; }.messages-container { flex: 1; overflow-y: auto; padding: 16px; }.empty-chat { color: #536158; padding-top: 18px; }.empty-chat p { font-size: 13px; line-height: 1.5; }.empty-chat button { display: block; width: 100%; text-align: left; background: #f3faf5; color: #167044; border: 1px solid #dceee2; margin: 9px 0; border-radius: 6px; padding: 10px; cursor: pointer; }.message { border-radius: 10px; padding: 10px 12px; margin-bottom: 10px; font-size: 14px; line-height: 1.45; white-space: pre-wrap; }.user-message { margin-left: 24px; background: #087b40; color: white; }.assistant-message { margin-right: 18px; background: #f1f7f3; color: #26382d; }.message-input { padding: 14px; border-top: 1px solid #e8eeea; display: flex; gap: 8px; }.message-input input { flex: 1; min-width: 0; border: 1px solid #d6e2d9; border-radius: 7px; padding: 10px; }.message-input button { background: #087b40; color: #fff; border: 0; border-radius: 7px; width: 40px; cursor: pointer; }
+.nav-disabled { opacity: .45; cursor: default; }
+.workspace-nav nav span { cursor: pointer; }
+.workspace-library-panel { flex: 1; height: 100%; overflow: auto; padding: 1rem 1.25rem; }
 
-.main-content {
-  display: flex;
-  height: 100%;
-}
+/* ─── LANDING (Fayl yuklash / Faylsiz so'rash / Kutubxona) ─── */
+.landing { height: 100%; display: flex; flex-direction: column; }
+.landing-tabs { display: flex; gap: 6px; padding: 14px 25px 0; background: #fff; border-bottom: 1px solid #e3ebe5; }
+.landing-tabs button { border: 0; background: transparent; color: #526057; font-size: 14px; font-weight: 600; padding: 10px 16px; border-radius: 8px 8px 0 0; cursor: pointer; }
+.landing-tabs button.active { color: #087b40; background: #eaf5ed; }
+.landing-tabs button:hover:not(.active) { background: #f4faf5; }
+.landing-body { flex: 1; overflow: auto; background: #f7faf8; }
 
-.excel-container {
-  flex: 1;
-  height: 100%;
-  overflow: auto;
-  padding: 1rem;
-}
+/* ─── QUICK CHAT (faylsiz so'rash) ─── */
+.quick-chat { height: 100%; max-width: 720px; margin: 0 auto; display: flex; flex-direction: column; background: #fff; }
+.quick-chat-header { padding: 20px 22px; border-bottom: 1px solid #e8eeea; }
+.quick-chat-header h2 { margin: 0; font-size: 18px; color: #164c2d; }
+.quick-chat-header p { margin: 6px 0 0; color: #718077; font-size: 13px; }
+.quick-chat .messages-container { flex: 1; overflow-y: auto; padding: 20px; }
+.quick-chat-loading { opacity: .6; font-style: italic; }
+.quick-chat-error { color: #b3261e; background: #fdecea; border: 1px solid #f5c2be; border-radius: 8px; padding: 10px 12px; font-size: 13px; margin-top: 8px; }
 
-.chat-sidebar {
-  width: 350px;
-  height: 100%;
-  border-left: 1px solid #374151;
-  background-color: #1f2937;
-}
+/* ─── FORMULA LIBRARY ─── */
+.formula-library { display: flex; height: 100%; gap: 0; }
+.library-list { width: 380px; flex-shrink: 0; border-right: 1px solid #e3ebe5; background: #fff; display: flex; flex-direction: column; overflow: hidden; }
+.library-search { padding: 14px 14px 0; }
+.library-search input { width: 100%; border: 1px solid #d6e2d9; border-radius: 7px; padding: 10px 12px; font-size: 13px; }
+.library-categories { display: flex; flex-wrap: wrap; gap: 6px; padding: 12px 14px; }
+.category-pill { border: 1px solid #d6e2d9; background: #f7faf8; color: #4c5b52; font-size: 11.5px; padding: 6px 10px; border-radius: 20px; cursor: pointer; }
+.category-pill.active { background: #087b40; border-color: #087b40; color: #fff; }
+.library-cards { flex: 1; overflow-y: auto; padding: 0 14px 14px; display: flex; flex-direction: column; gap: 10px; }
+.library-empty { color: #7a8a80; font-size: 13px; padding: 20px 4px; }
+.library-card { border: 1px solid #e3ebe5; border-radius: 10px; padding: 12px 14px; cursor: pointer; transition: border-color .15s, background .15s; }
+.library-card:hover { border-color: #a9d3b8; }
+.library-card.active { border-color: #087b40; background: #f4faf5; }
+.library-card-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.library-card-head h4 { margin: 0; font-size: 13.5px; color: #18251d; }
+.library-copy-btn { border: 1px solid #d6e2d9; background: #fff; color: #087b40; font-size: 11px; padding: 4px 8px; border-radius: 6px; cursor: pointer; white-space: nowrap; }
+.library-copy-btn:hover { background: #eaf5ed; }
+.library-card code { display: block; margin-top: 6px; font-size: 12px; color: #0f6b3a; background: #f2f8f4; border-radius: 6px; padding: 6px 8px; overflow-x: auto; white-space: pre; }
+.library-card p { margin: 8px 0 0; font-size: 12px; color: #64756b; line-height: 1.5; }
+.library-tester { flex: 1; overflow-y: auto; background: #f7faf8; padding: 18px; }
 
-.loading {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  height: 100%;
-  font-size: 1.2rem;
-  color: #9ca3af;
+/* ─── FORMULA TESTER ─── */
+.formula-tester { max-width: 640px; }
+.tester-header h3 { margin: 0 0 4px; font-size: 15px; color: #164c2d; }
+.tester-header p { margin: 0 0 16px; font-size: 12.5px; color: #718077; line-height: 1.5; }
+.tester-formula-label { font-size: 11.5px; font-weight: 600; color: #4c5b52; display: block; margin-bottom: 6px; }
+.tester-formula-row { display: flex; gap: 8px; margin-bottom: 12px; }
+.tester-formula-input { flex: 1; font-family: 'JetBrains Mono', 'Courier New', monospace; font-size: 13px; border: 1px solid #d6e2d9; border-radius: 7px; padding: 10px 12px; color: #0f6b3a; background: #fff; }
+.tester-result { display: flex; align-items: center; gap: 10px; border-radius: 8px; padding: 10px 14px; margin-bottom: 16px; font-size: 13px; }
+.tester-result.ok { background: #eaf5ed; border: 1px solid #bfe3ca; }
+.tester-result.error { background: #fdecea; border: 1px solid #f5c2be; }
+.tester-result-label { font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: #4c5b52; }
+.tester-result.error .tester-result-label { color: #b3261e; }
+.tester-result-value { font-family: 'JetBrains Mono', 'Courier New', monospace; font-weight: 600; color: #18251d; word-break: break-word; }
+.tester-grid-wrap { overflow-x: auto; border: 1px solid #e3ebe5; border-radius: 8px; background: #fff; }
+.tester-grid { border-collapse: collapse; width: 100%; font-size: 12px; }
+.tester-grid th, .tester-grid td { border: 1px solid #edf2ee; padding: 0; text-align: center; }
+.tester-grid thead th { background: #f4faf5; color: #4c5b52; font-weight: 600; padding: 6px 0; }
+.tester-grid tbody th { background: #f4faf5; color: #4c5b52; font-weight: 600; width: 30px; }
+.tester-grid td input { width: 78px; border: 0; padding: 7px 6px; font-size: 12px; text-align: center; background: transparent; }
+.tester-grid td input:focus { background: #eaf5ed; outline: 1px solid #087b40; }
+.tester-clear-btn { margin-top: 12px; border: 1px solid #d6e2d9; background: #fff; color: #526057; font-size: 12px; padding: 8px 14px; border-radius: 7px; cursor: pointer; }
+.tester-clear-btn:hover { background: #f4faf5; }
+
+@media (max-width: 900px) { .workspace-nav { display: none; } .chat-sidebar { width: 320px; } .library-list { width: 300px; } }
+@media (max-width: 700px) {
+  .main-content { flex-direction: column; overflow: auto; }
+  .excel-container { min-height: 55vh; }
+  .chat-sidebar { width: auto; min-height: 430px; border-left: 0; border-top: 1px solid #e3ebe5; }
+  .formula-library { flex-direction: column; }
+  .library-list { width: auto; border-right: 0; border-bottom: 1px solid #e3ebe5; max-height: 45vh; }
+  .landing-tabs { flex-wrap: wrap; }
 }

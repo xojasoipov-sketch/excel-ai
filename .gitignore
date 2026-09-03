@@ -31,3 +31,7 @@ dist/
 backend/uploads/
 *.xlsx
 !data.xlsx
+
+# Electron desktop build output (large; not part of the web deploy)
+release/
+desktop-build/

@@ -1,5 +1,6 @@
 import os
 import re
+import openpyxl
 import pandas as pd
 from typing import List, Dict, Any, Optional, Tuple, Union
 
@@ -9,11 +10,31 @@ class ExcelUtils:
         self.file_path = file_path
         self.file_extension = os.path.splitext(file_path)[1].lower()
     
+    def _load_xlsx_preserving_formulas(self) -> pd.DataFrame:
+        """Read an openpyxl-supported workbook keeping formulas as text.
+
+        pandas reads formula cells through openpyxl's ``data_only=True`` mode, which
+        returns ``None`` for any formula the file has no cached result for. Every
+        formula this app writes would then be read back as empty and overwritten on
+        the next save. Reading the formula text instead keeps them intact.
+        """
+        workbook = openpyxl.load_workbook(self.file_path, data_only=False)
+        sheet = workbook.active
+        rows = [[cell.value for cell in row] for row in sheet.iter_rows()]
+
+        # Match pandas' behaviour of dropping fully empty trailing rows and columns.
+        while rows and all(value is None for value in rows[-1]):
+            rows.pop()
+        while rows and rows[0] and all(row[-1] is None for row in rows):
+            for row in rows:
+                row.pop()
+        return pd.DataFrame(rows)
+
     def load_excel(self) -> pd.DataFrame:
         """Load the spreadsheet file into a pandas DataFrame"""
         # Determine the appropriate engine and options based on file extension
         if self.file_extension in ['.xlsx', '.xlsm', '.xltx', '.xltm']:
-            return pd.read_excel(self.file_path, engine="openpyxl", header=None)
+            return self._load_xlsx_preserving_formulas()
         elif self.file_extension == '.xls':
             return pd.read_excel(self.file_path, engine="xlrd", header=None)
         elif self.file_extension == '.csv':
@@ -24,7 +45,7 @@ class ExcelUtils:
             return pd.read_excel(self.file_path, engine="odf", header=None)
         else:
             # Default to openpyxl for unknown extensions
-            return pd.read_excel(self.file_path, engine="openpyxl", header=None)
+            return self._load_xlsx_preserving_formulas()
     
     def save_excel(self, df: pd.DataFrame) -> None:
         """Save the DataFrame to the spreadsheet file"""

@@ -5,4 +5,10 @@ pandas>=2.3.1,<3.0.0
 openpyxl>=3.1.5,<4.0.0
 python-dotenv>=1.1.1,<2.0.0
 openai>=1.3.0,<2.0.0
-websockets>=12.0,<13.0
+# >=14 is required by supabase's realtime client; <15 keeps the legacy server API
+# that uvicorn 0.23 uses for our WebSocket endpoint.
+websockets>=14.0,<15.0
+python-telegram-bot>=21.0,<22.0
+supabase>=2.4.0,<3.0.0
+stripe>=8.0.0,<13.0.0
+cryptography>=42.0.0
