@@ -1,15 +1,73 @@
 # ExcelYordamchi AI
 
-O‘zbek, rus va ingliz tillarida Excel formulalarini yaratadigan, faylni tahlil qiladigan web-ilova va Telegram bot. Asos: [ExcelFlow](https://github.com/parthvadhadiya/ExcelFlow), MIT litsenziyasi asosida moslashtirilgan.
+O‘zbek, rus va ingliz tillarida Excel formulalarini yaratadigan, faylni tahlil qiladigan
+**web SaaS** va Telegram bot. Asos: [ExcelFlow](https://github.com/parthvadhadiya/ExcelFlow),
+MIT litsenziyasi asosida moslashtirilgan.
 
-## Ishga tushirish
+## Mahsulot tuzilishi
 
-1. `backend/.env.example` faylidan `backend/.env` nusxa oling va `DEEPSEEK_API_KEY` ni kiriting.
-2. Backend: `cd backend`, `pip install -r requirements.txt`, so‘ng `uvicorn app.main:app --reload`.
-3. Frontend: `cd frontend`, `npm install`, so‘ng `npm run dev`.
-4. Telegram uchun `TELEGRAM_BOT_TOKEN` ni `.env` ga kiriting va `cd backend; python telegram_bot.py` ni ishga tushiring.
+| Bo‘lim | Kirish huquqi |
+|---|---|
+| Formula kutubxonasi (24 shablon) + Formula Test | Hammaga, hisobsiz ham, cheksiz bepul (AI ishlatmaydi) |
+| Fayl yuklab AI bilan ishlash, faylsiz formula so‘rash | Hisob kerak. Bepul reja: kuniga `FREE_DAILY_LIMIT` (odatda 5) so‘rov |
+| Cheksiz AI | Pro — $5/oy (Stripe), yoki promokod, yoki `OWNER_EMAIL` egasi |
+| `/admin` | Faqat `OWNER_EMAIL` egasi |
 
-API kalitlar hech qachon GitHub’ga yuborilmaydi.
+## Arxitektura
+
+- **Backend** — FastAPI. Bitta servis ham API'ni, ham yig‘ilgan React SPA'ni tarqatadi
+  (`frontend/dist`), shuning uchun sayt va API bir origin'da bo‘ladi.
+- **Auth + DB** — Supabase (Google OAuth va email/parol, Postgres).
+  Backend Supabase access-token'ni tekshiradi va `profiles` jadvalidan reja/huquqni oladi.
+- **To‘lov** — Stripe Checkout + webhook. Kalitlar sozlanmagan bo‘lsa, sayt ishlaydi,
+  faqat karta orqali to‘lov o‘chirilgan bo‘lib turadi (100% promokodlar ishlaydi).
+- **Promokodlar** — 100% kod DB'da to‘g‘ridan-to‘g‘ri Pro beradi; qismli chegirma
+  (1–99%) Stripe kuponiga aylanib, keyingi to‘lovda qo‘llanadi.
+
+Jadvalar: `profiles`, `uploads`, `usage_events`, `payments`, `promo_codes`,
+`promo_redemptions`, `admin_settings`.
+
+## Mahalliy ishga tushirish
+
+1. `backend/.env.example` → `backend/.env`, `frontend/.env.example` → `frontend/.env`
+   nusxa olib to‘ldiring (kalitlar quyida).
+2. Backend: `cd backend && pip install -r requirements.txt && uvicorn app.main:app --reload`
+3. Frontend: `cd frontend && npm install && npm run dev` (`http://localhost:5173`)
+4. Telegram bot (ixtiyoriy): `.env`ga `TELEGRAM_BOT_TOKEN` qo‘shib `python telegram_bot.py`.
+
+## Kalitlar (`backend/.env`)
+
+| Kalit | Qayerdan |
+|---|---|
+| `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` | Supabase → Project Settings → API |
+| `OWNER_EMAIL` | Cheksiz bepul + admin huquqi shu emailga beriladi |
+| `DEEPSEEK_API_KEY`, `DEEPSEEK_BASE_URL`, `DEEPSEEK_MODEL` | AI provayder (B.AI / DeepSeek) |
+| `STRIPE_SECRET_KEY`, `STRIPE_PRICE_ID`, `STRIPE_WEBHOOK_SECRET` | Stripe Dashboard (ixtiyoriy) |
+| `CARD_ENCRYPTION_KEY` | `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"` |
+| `SITE_URL` | Saytning ommaviy manzili (Stripe redirect va CORS uchun) |
+
+Frontend (`frontend/.env`, brauzerga ketadi — maxfiy kalit qo‘ymang):
+`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, (dev uchun) `VITE_API_URL`.
+
+## Deploy (Render)
+
+`render.yaml` blueprint mavjud. Qo‘lda sozlaganda:
+
+- **Build:** `pip install -r backend/requirements.txt && npm --prefix frontend ci && npm --prefix frontend run build`
+- **Start:** `cd backend && uvicorn app.main:app --host 0.0.0.0 --port $PORT`
+- **Health check:** `/api/health`
+- Barcha maxfiy kalitlarni Render → Environment bo‘limiga qo‘shing.
+
+Stripe webhook manzili: `https://<sayt>/api/billing/webhook`
+(hodisalar: `customer.subscription.*`, `checkout.session.completed`, `invoice.paid`).
+
+## Desktop (Electron)
+
+Desktop varianti ham saqlangan: `npm run desktop` (ishga tushirish) yoki
+`npm run dist:win` (paket). Web build `/assets/...`, desktop build `./assets/...`
+yo‘llardan foydalanadi — buni `BUILD_TARGET=desktop` boshqaradi.
+
+API kalitlar hech qachon GitHub’ga yuborilmaydi (`.env` gitignore'da).
 
 ---
 

@@ -1,0 +1,52 @@
+# Render blueprint. One web service runs FastAPI, which also serves the built
+# React SPA — so the API and the site share a single origin and a single deploy.
+#
+# Secrets are intentionally NOT in this file. Set them in the Render dashboard
+# (Environment tab) or via the API:
+#   SUPABASE_SERVICE_ROLE_KEY  (Supabase → Project Settings → API → service_role)
+#   DEEPSEEK_API_KEY           (B.AI / DeepSeek key)
+#   STRIPE_SECRET_KEY, STRIPE_PRICE_ID, STRIPE_WEBHOOK_SECRET   (optional at launch)
+#   CARD_ENCRYPTION_KEY        (Fernet key for the admin payout-card field)
+services:
+  - type: web
+    name: excelyordamchi-ai
+    runtime: python
+    plan: free
+    region: frankfurt
+    branch: web-saas
+    buildCommand: pip install -r backend/requirements.txt && npm --prefix frontend ci && npm --prefix frontend run build
+    startCommand: cd backend && uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/health
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12"
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: OWNER_EMAIL
+        sync: false
+      - key: SITE_URL
+        sync: false
+      - key: FREE_DAILY_LIMIT
+        value: "5"
+      - key: PLAN_PRICE_USD
+        value: "5"
+      - key: DEEPSEEK_API_KEY
+        sync: false
+      - key: DEEPSEEK_BASE_URL
+        sync: false
+      - key: DEEPSEEK_MODEL
+        sync: false
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_PRICE_ID
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      - key: CARD_ENCRYPTION_KEY
+        sync: false
+      - key: VITE_SUPABASE_URL
+        sync: false
+      - key: VITE_SUPABASE_ANON_KEY
+        sync: false
