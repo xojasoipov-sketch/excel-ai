@@ -55,6 +55,39 @@ active_connections: Dict[str, Dict] = {}
 excel_agent = ExcelAgent()
 
 
+# A reference to the background bot-startup task MUST be kept somewhere:
+# asyncio.create_task() only holds a weak reference internally, so without this
+# the task can be garbage-collected mid-flight and silently never finish.
+_background_tasks: set = set()
+
+
+@app.on_event("startup")
+async def _start_telegram_bot() -> None:
+    """Best-effort: the bot shares this same free web-service process instead of
+    needing its own paid Render background-worker instance. A failure here (bad
+    token, network hiccup) must never take the whole API down with it."""
+    async def _run():
+        try:
+            from telegram_bot import start_in_background
+            await start_in_background()
+        except Exception:
+            import logging
+            logging.getLogger("telegram_bot").exception("Telegram bot failed to start")
+
+    task = asyncio.create_task(_run())
+    _background_tasks.add(task)
+    task.add_done_callback(_background_tasks.discard)
+
+
+@app.on_event("shutdown")
+async def _stop_telegram_bot() -> None:
+    try:
+        from telegram_bot import stop_background
+        await stop_background()
+    except Exception:
+        pass
+
+
 class ConnectionManager:
     def __init__(self):
         self.active_connections: Dict[str, WebSocket] = {}
