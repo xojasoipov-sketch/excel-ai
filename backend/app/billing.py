@@ -81,6 +81,9 @@ def create_checkout_session(user: dict) -> dict:
     session_args = {
         "mode": "subscription",
         "customer": customer_id,
+        # Explicit rather than relying on the Stripe dashboard's default payment
+        # methods list, which is empty until the account finishes activation.
+        "payment_method_types": ["card"],
         "line_items": [{"price": PRICE_ID, "quantity": 1}],
         "success_url": f"{SITE_URL}/billing?checkout=success",
         "cancel_url": f"{SITE_URL}/billing?checkout=cancelled",

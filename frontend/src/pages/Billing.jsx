@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { apiFetch } from '../lib/api';
+import { CardIcon, ClickIcon, PaymeIcon, VisaIcon, MastercardIcon } from '../components/PaymentIcons';
 
 function formatDate(value) {
   if (!value) return null;
@@ -134,8 +135,8 @@ const Billing = ({ session, profile, onProfileRefresh }) => {
             <li>Cheksiz fayl tahlili</li>
             <li>Barcha shablonlar va Formula Test</li>
           </ul>
-          <button type="button" className="primary-btn full" onClick={startCheckout} disabled={checkoutBusy || !cardActive}>
-            {checkoutBusy ? 'Ochilmoqda…' : '💳 Karta bilan to‘lash'}
+          <button type="button" className="primary-btn full pay-btn" onClick={startCheckout} disabled={checkoutBusy || !cardActive}>
+            <CardIcon /> {checkoutBusy ? 'Ochilmoqda…' : 'Karta bilan to‘lash'}
           </button>
           {!cardActive && (
             <p className="muted-note">
@@ -168,11 +169,11 @@ const Billing = ({ session, profile, onProfileRefresh }) => {
       <div className="methods-card">
         <h2>To‘lov usullari</h2>
         <div className="methods-row">
-          <div className={`method-chip ${cardActive ? 'active' : 'soon'}`}>
-            💳 Karta (Visa / Mastercard) {cardActive ? '' : '— sozlanmagan'}
+          <div className={`method-chip with-icon ${cardActive ? 'active' : 'soon'}`}>
+            <VisaIcon /><MastercardIcon /> Karta {cardActive ? '' : '— sozlanmagan'}
           </div>
-          <div className="method-chip soon">Payme (so‘m) — tez orada</div>
-          <div className="method-chip soon">Click (so‘m) — tez orada</div>
+          <div className="method-chip with-icon soon"><PaymeIcon /> Payme (so‘m) — tez orada</div>
+          <div className="method-chip with-icon soon"><ClickIcon /> Click (so‘m) — tez orada</div>
         </div>
         <p className="muted-note">
           So‘m orqali to‘lov (Payme va Click) ustida ishlanmoqda — tayyor bo‘lganda shu yerda paydo bo‘ladi.

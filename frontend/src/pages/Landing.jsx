@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { apiFetch } from '../lib/api';
+import { ClickIcon, PaymeIcon, VisaIcon, MastercardIcon } from '../components/PaymentIcons';
 
 const Landing = ({ session }) => {
   const [plans, setPlans] = useState(null);
@@ -76,9 +77,9 @@ const Landing = ({ session }) => {
 
         <div className="payment-methods">
           <span>To‘lov usullari:</span>
-          <div className="method-chip active">💳 Karta (Visa/Mastercard)</div>
-          <div className="method-chip soon">Payme — tez orada</div>
-          <div className="method-chip soon">Click — tez orada</div>
+          <div className="method-chip with-icon active"><VisaIcon /><MastercardIcon /> Karta</div>
+          <div className="method-chip with-icon soon"><PaymeIcon /> Payme — tez orada</div>
+          <div className="method-chip with-icon soon"><ClickIcon /> Click — tez orada</div>
         </div>
       </section>
 
