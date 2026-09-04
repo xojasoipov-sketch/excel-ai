@@ -28,7 +28,15 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 from fastapi import HTTPException
-from telegram import BotCommand, InlineKeyboardButton, InlineKeyboardMarkup, InputFile, Update
+from telegram import (
+    BotCommand,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    InputFile,
+    KeyboardButton,
+    ReplyKeyboardMarkup,
+    Update,
+)
 from telegram.constants import ParseMode
 from telegram.ext import (
     Application,
@@ -91,6 +99,23 @@ def _quota_denied_text(detail) -> str:
 
 
 # ─── Keyboards ──────────────────────────────────────────────────────────────
+
+# Inline buttons scroll out of view as the conversation grows, which pushes
+# people to re-send /start just to get the menu back. This persistent keyboard
+# sits above the input box and never scrolls away.
+BTN_LIBRARY = "📚 Kutubxona"
+BTN_PRICE = "💎 Narxlar"
+BTN_HELP = "ℹ️ Yordam"
+
+
+def persistent_keyboard() -> ReplyKeyboardMarkup:
+    return ReplyKeyboardMarkup(
+        [[KeyboardButton(BTN_LIBRARY), KeyboardButton(BTN_PRICE), KeyboardButton(BTN_HELP)]],
+        resize_keyboard=True,
+        is_persistent=True,
+        input_field_placeholder="Formulani so'rang yoki tugmani bosing…",
+    )
+
 
 def main_menu_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([
@@ -166,9 +191,18 @@ def _formula_result_text(item: dict, cells: dict, overrides_used: bool) -> str:
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user = update.effective_user
-    _, is_new = get_or_create_telegram_profile(user.id, user.username or "")
-    text = (REGISTERED_BANNER if is_new else "") + WELCOME_TEXT
-    await update.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=main_menu_keyboard())
+    profile, is_new = get_or_create_telegram_profile(user.id, user.username or "")
+
+    status = quota_status(profile)
+    if status["unlimited"]:
+        status_line = "\n\n✅ Sizda *cheksiz* foydalanish huquqi bor."
+    else:
+        status_line = f"\n\nBugun qoldi: *{status['remaining']} / {status['limit']}* bepul so'rov."
+
+    text = (REGISTERED_BANNER if is_new else "") + WELCOME_TEXT + status_line
+    await update.message.reply_text(
+        text, parse_mode=ParseMode.MARKDOWN, reply_markup=persistent_keyboard()
+    )
 
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -255,6 +289,19 @@ async def admin_stats(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         f"So'nggi 7 kunlik ro'yxatdan o'tish: {s['signups_7d']}",
         parse_mode=ParseMode.MARKDOWN,
     )
+
+
+async def on_menu_button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Taps on the persistent keyboard arrive as ordinary text messages. They're
+    routed here — and registered ahead of the AI handler — so a menu tap never
+    gets sent to the model and never burns a quota call."""
+    text = (update.message.text or "").strip()
+    if text == BTN_LIBRARY:
+        await library(update, context)
+    elif text == BTN_PRICE:
+        await price_command(update, context)
+    elif text == BTN_HELP:
+        await help_command(update, context)
 
 
 # ─── Inline button taps ─────────────────────────────────────────────────────
@@ -438,6 +485,11 @@ def build_application() -> Application:
     application.add_handler(CommandHandler("admin", admin_stats))
     application.add_handler(CallbackQueryHandler(on_callback))
     application.add_handler(MessageHandler(filters.Document.ALL, handle_spreadsheet))
+    # Must stay ahead of the AI handler below, which would otherwise treat a
+    # menu tap as a formula question and spend a quota call on it.
+    application.add_handler(
+        MessageHandler(filters.Text([BTN_LIBRARY, BTN_PRICE, BTN_HELP]), on_menu_button)
+    )
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, answer_data_question))
     return application
 
