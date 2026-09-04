@@ -71,7 +71,7 @@ def sign_in_with_telegram(payload: TelegramAuthPayload) -> dict:
     _verify_signature(payload)
 
     display_name = payload.username or payload.first_name or str(payload.id)
-    profile = get_or_create_telegram_profile(payload.id, display_name)
+    profile, _ = get_or_create_telegram_profile(payload.id, display_name)
 
     db = get_db()
     link = db.auth.admin.generate_link({"type": "magiclink", "email": profile["email"]})

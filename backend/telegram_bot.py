@@ -51,6 +51,11 @@ log = logging.getLogger("telegram_bot")
 
 MAX_TELEGRAM_MESSAGE = 3500  # stay under Telegram's 4096-char hard limit
 
+REGISTERED_BANNER = (
+    "✅ *Ro'yxatdan muvaffaqiyatli o'tdingiz!*\n"
+    "Endi sizda kuniga {limit} ta bepul AI so'rov huquqi bor.\n\n"
+).format(limit=FREE_DAILY_LIMIT)
+
 WELCOME_TEXT = (
     "👋 Salom! Men *ExcelYordamchi AI* botiman.\n\n"
     "Excel formulani o'zbekcha, ruscha yoki inglizcha yozing — masalan:\n"
@@ -74,7 +79,8 @@ CATEGORY_LABELS = {c["id"]: c["label"] for c in formula_lab.CATEGORIES}
 
 def _profile(update: Update) -> dict:
     user = update.effective_user
-    return get_or_create_telegram_profile(user.id, user.username or "")
+    profile, _ = get_or_create_telegram_profile(user.id, user.username or "")
+    return profile
 
 
 def _quota_denied_text(detail) -> str:
@@ -157,8 +163,10 @@ def _formula_result_text(item: dict, cells: dict, overrides_used: bool) -> str:
 # ─── Commands ───────────────────────────────────────────────────────────────
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    _profile(update)  # ensure a profile row exists from the first contact
-    await update.message.reply_text(WELCOME_TEXT, parse_mode=ParseMode.MARKDOWN, reply_markup=main_menu_keyboard())
+    user = update.effective_user
+    _, is_new = get_or_create_telegram_profile(user.id, user.username or "")
+    text = (REGISTERED_BANNER if is_new else "") + WELCOME_TEXT
+    await update.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=main_menu_keyboard())
 
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
