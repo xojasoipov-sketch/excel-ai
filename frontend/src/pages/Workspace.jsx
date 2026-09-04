@@ -5,7 +5,7 @@ import ExcelViewer from '../components/ExcelViewer';
 import ChatInterface from '../components/ChatInterface';
 import QuickChat from '../components/QuickChat';
 import FormulaLibrary from '../components/FormulaLibrary';
-import { apiFetch, websocketUrl } from '../lib/api';
+import { apiFetch, downloadFile, websocketUrl } from '../lib/api';
 
 function QuotaBanner({ message }) {
   return (
@@ -97,6 +97,16 @@ const Workspace = ({ profile, session, onProfileRefresh }) => {
     }
   };
 
+  const downloadWorkbook = async () => {
+    if (!clientId) return;
+    setError(null);
+    try {
+      await downloadFile(`/excel/${clientId}/download`, 'jadval.xlsx');
+    } catch (err) {
+      setError(err.message || 'Faylni yuklab bo‘lmadi.');
+    }
+  };
+
   const sendMessage = (message) => {
     if (!socket || socket.readyState !== WebSocket.OPEN) {
       setError('Ulanish uzilgan. Sahifani yangilang.');
@@ -180,7 +190,14 @@ const Workspace = ({ profile, session, onProfileRefresh }) => {
         <>
           <div className="excel-container">
             {excelData ? (
-              <ExcelViewer data={excelData.data} metadata={excelData.metadata} />
+              <>
+                <div className="excel-toolbar">
+                  <button type="button" className="ghost-btn small" onClick={downloadWorkbook}>
+                    ⬇️ Faylni yuklab olish
+                  </button>
+                </div>
+                <ExcelViewer data={excelData.data} metadata={excelData.metadata} />
+              </>
             ) : (
               <div className="loading">Jadval yuklanmoqda...</div>
             )}

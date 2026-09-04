@@ -80,3 +80,4 @@
   .library-list { width: auto; border-right: 0; border-bottom: 1px solid #e3ebe5; max-height: 45vh; }
   .landing-tabs { flex-wrap: wrap; }
 }
+.excel-toolbar { display: flex; justify-content: flex-end; margin-bottom: 10px; }

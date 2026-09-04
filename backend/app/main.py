@@ -330,6 +330,7 @@ async def upload_excel(file: UploadFile = File(...), user: dict = Depends(get_cu
         active_connections[client_id] = {
             "owner_id": user["user_id"],
             "file_path": file_path,
+            "original_name": file.filename or f"upload{file_extension}",
             "excel_utils": excel_utils,
             "message_history": [
                 {"role": "system", "content": build_sheet_system_prompt(df, file_extension)}
@@ -354,6 +355,27 @@ async def upload_excel(file: UploadFile = File(...), user: dict = Depends(get_cu
 async def get_excel_data(client_id: str, user: dict = Depends(get_current_user)):
     session = require_owned_session(client_id, user)
     return dataframe_to_payload(session["excel_utils"].get_dataframe())
+
+
+@app.get("/excel/{client_id}/download")
+async def download_excel(client_id: str, user: dict = Depends(get_current_user)):
+    """Download the working copy of the sheet, including anything the AI changed.
+    Without this the edits were only ever visible in the grid — there was no way
+    to get the actual file back.
+
+    The frontend fetches this with the auth header and saves the blob, rather
+    than navigating to a URL carrying the token as a query parameter."""
+    session = require_owned_session(client_id, user)
+
+    file_path = session["file_path"]
+    if not os.path.isfile(file_path):
+        raise HTTPException(status_code=404, detail="Fayl topilmadi.")
+
+    return FileResponse(
+        file_path,
+        filename=os.path.basename(session.get("original_name") or file_path),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
 
 
 @app.websocket("/ws/{client_id}")

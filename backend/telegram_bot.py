@@ -411,6 +411,7 @@ async def handle_spreadsheet(update: Update, context: ContextTypes.DEFAULT_TYPE)
         excel_utils = ExcelUtils(str(file_path))
         df = excel_utils.get_dataframe()
         context.chat_data["excel_utils"] = excel_utils
+        context.chat_data["file_name"] = document.file_name or file_path.name
         context.chat_data["history"] = [{
             "role": "system",
             "content": f"""You are ExcelYordamchi AI. Reply in the user's language: Uzbek, Russian, or English.
@@ -444,14 +445,38 @@ async def answer_data_question(update: Update, context: ContextTypes.DEFAULT_TYP
     await update.message.chat.send_action("typing")
     try:
         agent: ExcelAgent = context.application.bot_data["agent"]
-        response, _ = await asyncio.to_thread(
+        response, excel_modified = await asyncio.to_thread(
             agent.call_agent, history, context.chat_data["excel_utils"],
         )
         history.append({"role": "assistant", "content": response})
         await update.message.reply_text(response[:MAX_TELEGRAM_MESSAGE])
+
+        # The agent can write into the workbook. Without sending it back, those
+        # edits would be stranded on the server and the user would have no way
+        # to get their changed file.
+        if excel_modified:
+            await _send_updated_workbook(update, context)
     except Exception as error:
         log.exception("call_agent failed")
         await update.message.reply_text(f"So'rovni bajarib bo'lmadi: {error}")
+
+
+async def _send_updated_workbook(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    excel_utils = context.chat_data.get("excel_utils")
+    # Read the path off ExcelUtils rather than a stored copy: saving an .xls
+    # rewrites it as .xlsx and updates file_path in place.
+    path = getattr(excel_utils, "file_path", None)
+    if not path or not Path(path).is_file():
+        return
+    try:
+        with open(path, "rb") as fh:
+            data = fh.read()
+        await update.message.reply_document(
+            document=InputFile(BytesIO(data), filename=context.chat_data.get("file_name") or Path(path).name),
+            caption="✅ O'zgartirilgan fayl tayyor.",
+        )
+    except Exception:
+        log.exception("sending the updated workbook failed")
 
 
 # ─── Wiring ─────────────────────────────────────────────────────────────────
