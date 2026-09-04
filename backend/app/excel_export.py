@@ -18,11 +18,19 @@ from openpyxl.styles import Font
 from openpyxl.utils import column_index_from_string, get_column_letter
 
 _CELL_RANGE_RE = re.compile(r"\$?([A-Za-z]{1,2})\$?(\d{1,7})(?::\$?([A-Za-z]{1,2})\$?(\d{1,7}))?")
+# Whole-column ranges (A:A, B:D) — the form models reach for most often. The
+# lookarounds keep it from matching the middle of a row-bounded range like A1:B5.
+_WHOLE_COLUMN_RE = re.compile(r"(?<![A-Za-z0-9$])\$?([A-Za-z]{1,2})\$?:\$?([A-Za-z]{1,2})\$?(?![A-Za-z0-9])")
 _QUOTED_RE = re.compile(r'"([^"]*)"')
-# range immediately followed by a comma then a quoted literal, e.g. B1:B10,"Toshkent"
+# A numeric comparison criteria such as ">100" or "<=5.5"
+_COMPARISON_RE = re.compile(r"^(>=|<=|<>|>|<|=)\s*(-?\d+(?:\.\d+)?)$")
+# A range immediately followed by a comma then a quoted literal, e.g.
+# B1:B10,"Toshkent" or B:B,"Toshkent" — that column is the one being matched on.
 _CRITERIA_PAIR_RE = re.compile(
-    r"\$?([A-Za-z]{1,2})\$?(\d{1,7}):\$?[A-Za-z]{1,2}\$?\d{1,7}\s*,\s*\"([^\"]*)\""
+    r"\$?([A-Za-z]{1,2})\$?(?:\d{1,7})?:\$?[A-Za-z]{1,2}\$?(?:\d{1,7})?\s*,\s*\"([^\"]*)\""
 )
+
+DEFAULT_SAMPLE_ROWS = 10  # used when the formula names no explicit row numbers
 
 _FALLBACK_LABELS = ["Toshkent", "Andijon", "Buxoro", "Namangan", "Farg'ona"]
 _HEADER_FONT = Font(bold=True)
@@ -62,29 +70,53 @@ def build_workbook_for_formula(ai_response_text: str) -> Optional[bytes]:
 
     columns = set()
     max_row = 1
+
+    def add_span(letter_a: str, letter_b: str) -> None:
+        """Fill every column the range spans (B:D means B, C and D), not just the
+        two letters that literally appear in the formula text."""
+        idx_a = column_index_from_string(letter_a.upper())
+        idx_b = column_index_from_string(letter_b.upper())
+        for idx in range(min(idx_a, idx_b), max(idx_a, idx_b) + 1):
+            columns.add(get_column_letter(idx))
+
     for m in _CELL_RANGE_RE.finditer(formula):
         col1, row1, col2, row2 = m.groups()
-        idx1 = column_index_from_string(col1.upper())
         max_row = max(max_row, int(row1))
         if col2:
-            idx2 = column_index_from_string(col2.upper())
-            # Fill every column spanned by the range (e.g. B:D means B, C and D),
-            # not just the two letters that literally appear in the formula text.
-            for idx in range(min(idx1, idx2), max(idx1, idx2) + 1):
-                columns.add(get_column_letter(idx))
+            add_span(col1, col2)
             max_row = max(max_row, int(row2))
         else:
-            columns.add(get_column_letter(idx1))
+            columns.add(get_column_letter(column_index_from_string(col1.upper())))
+
+    # Whole-column ranges (=SUMIF(B:B,"Toshkent",A:A)) carry no row numbers, so
+    # they'd otherwise yield no columns at all and skip the workbook entirely.
+    for m in _WHOLE_COLUMN_RE.finditer(formula):
+        add_span(*m.groups())
+
     if not columns:
         return None
+    if max_row == 1:
+        max_row = DEFAULT_SAMPLE_ROWS
     max_row = min(max_row, 40)  # keep the sample file small
 
+    # Text criteria (B:B,"Toshkent") become labels in that column. Numeric
+    # comparisons (C:C,">100") must NOT be written in literally — the cells need
+    # numbers straddling the threshold, otherwise the condition matches nothing
+    # and the sample file doesn't actually demonstrate the formula.
     criteria_columns: dict[str, str] = {}
+    threshold_columns: dict[str, float] = {}
     for m in _CRITERIA_PAIR_RE.finditer(formula):
-        col, _row, literal = m.groups()
-        criteria_columns[col.upper()] = literal
+        col, literal = m.groups()
+        comparison = _COMPARISON_RE.match(literal.strip())
+        if comparison:
+            threshold_columns[col.upper()] = float(comparison.group(2))
+        else:
+            criteria_columns[col.upper()] = literal
 
-    other_literals = [v for v in _QUOTED_RE.findall(formula) if v not in criteria_columns.values()]
+    other_literals = [
+        v for v in _QUOTED_RE.findall(formula)
+        if v not in criteria_columns.values() and not _COMPARISON_RE.match(v.strip())
+    ]
     label_pool = (other_literals + _FALLBACK_LABELS)
 
     wb = openpyxl.Workbook()
@@ -101,6 +133,10 @@ def build_workbook_for_formula(ai_response_text: str) -> Optional[bytes]:
                 # plausible alternates, so the formula's condition genuinely
                 # matches on some rows and not others when opened in Excel.
                 cell.value = criteria_columns[col] if row % 2 == 1 else label_pool[row % len(label_pool)]
+            elif col in threshold_columns:
+                # Straddle the threshold: odd rows clear it, even rows don't.
+                threshold = threshold_columns[col]
+                cell.value = round(threshold + 25 + row if row % 2 == 1 else max(threshold - 25 - row, 0), 2)
             else:
                 cell.value = (row * 37 % 460) + 15
 
