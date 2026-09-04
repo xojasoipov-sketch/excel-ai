@@ -1,4 +1,5 @@
 import asyncio
+import base64
 import json
 import os
 import uuid
@@ -17,6 +18,7 @@ from . import admin as admin_service
 from . import billing, promo
 from .agent import ExcelAgent
 from .auth import authenticate_websocket, get_current_user, require_owner
+from .excel_export import build_workbook_for_formula
 from .excel_utils import ExcelUtils
 from .quota import FREE_DAILY_LIMIT, enforce_ai_quota, quota_status
 from .telegram_login import TelegramAuthPayload, sign_in_with_telegram
@@ -287,7 +289,18 @@ async def quick_chat(payload: QuickChatRequest, user: dict = Depends(get_current
         print(f"Error in quick_chat: {str(e)}")
         return JSONResponse(status_code=502, content={"error": f"AI javob bera olmadi: {str(e)}"})
 
-    return {"response": response, "quota": quota_status(user)}
+    # A bare formula string is only useful if the user's own sheet happens to
+    # match those exact cell letters — hand back a real workbook (sample data +
+    # the live formula) so it's something they can actually open and use.
+    excel_file_base64 = None
+    try:
+        workbook_bytes = build_workbook_for_formula(response)
+        if workbook_bytes:
+            excel_file_base64 = base64.b64encode(workbook_bytes).decode()
+    except Exception as e:
+        print(f"excel_export failed: {str(e)}")
+
+    return {"response": response, "quota": quota_status(user), "excel_file_base64": excel_file_base64}
 
 
 # ─── AI: spreadsheet workspace ────────────────────────────────────────────────

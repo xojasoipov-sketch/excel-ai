@@ -23,11 +23,12 @@ import asyncio
 import logging
 import os
 import uuid
+from io import BytesIO
 from pathlib import Path
 
 from dotenv import load_dotenv
 from fastapi import HTTPException
-from telegram import BotCommand, InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram import BotCommand, InlineKeyboardButton, InlineKeyboardMarkup, InputFile, Update
 from telegram.constants import ParseMode
 from telegram.ext import (
     Application,
@@ -42,6 +43,7 @@ from app import admin as admin_service
 from app import formula_lab
 from app.agent import ExcelAgent
 from app.billing import PLAN_PRICE_USD, SITE_URL
+from app.excel_export import build_workbook_for_formula
 from app.excel_utils import ExcelUtils
 from app.quota import FREE_DAILY_LIMIT, enforce_ai_quota, quota_status
 from app.telegram_identity import get_or_create_telegram_profile
@@ -317,9 +319,27 @@ async def answer_formula(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             ],
         )
         await update.message.reply_text(response[:MAX_TELEGRAM_MESSAGE])
+        await _send_formula_workbook(update, response)
     except Exception as error:
         log.exception("quick_chat failed")
         await update.message.reply_text(f"AI javob bera olmadi: {error}")
+
+
+async def _send_formula_workbook(update: Update, ai_response_text: str) -> None:
+    """A bare formula string is only useful if the user's own sheet happens to
+    match those exact cell letters — send a real .xlsx (sample data + the live
+    formula) so there's something they can actually open and use."""
+    try:
+        workbook_bytes = build_workbook_for_formula(ai_response_text)
+    except Exception:
+        log.exception("excel_export failed")
+        return
+    if not workbook_bytes:
+        return
+    await update.message.reply_document(
+        document=InputFile(BytesIO(workbook_bytes), filename="formula_namuna.xlsx"),
+        caption="📊 Namuna jadval + tayyor formula. Ochib, o'z ma'lumotlaringizni joylashtiring.",
+    )
 
 
 # ─── File upload + chat about it ────────────────────────────────────────────

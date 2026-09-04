@@ -29,7 +29,11 @@ const QuickChat = ({ onQuotaExceeded, onUsed }) => {
         method: 'POST',
         body: JSON.stringify({ messages: nextMessages }),
       });
-      setMessages((prev) => [...prev, { role: 'assistant', content: data.response }]);
+      setMessages((prev) => [...prev, {
+        role: 'assistant',
+        content: data.response,
+        excelFileBase64: data.excel_file_base64 || null,
+      }]);
       onUsed?.();
     } catch (err) {
       console.error('QuickChat error:', err);
@@ -42,6 +46,21 @@ const QuickChat = ({ onQuotaExceeded, onUsed }) => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const downloadExcelFile = (base64Data) => {
+    const bytes = Uint8Array.from(atob(base64Data), (c) => c.charCodeAt(0));
+    const blob = new Blob([bytes], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'formula_namuna.xlsx';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
   };
 
   const handleSubmit = (e) => {
@@ -72,6 +91,15 @@ const QuickChat = ({ onQuotaExceeded, onUsed }) => {
           messages.map((msg, index) => (
             <div key={index} className={`message ${msg.role === 'user' ? 'user-message' : 'assistant-message'}`}>
               {msg.content}
+              {msg.excelFileBase64 && (
+                <button
+                  type="button"
+                  className="excel-download-btn"
+                  onClick={() => downloadExcelFile(msg.excelFileBase64)}
+                >
+                  📥 Excel faylni yuklab olish (namuna jadval + formula)
+                </button>
+              )}
             </div>
           ))
         )}

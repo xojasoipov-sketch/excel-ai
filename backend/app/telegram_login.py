@@ -29,7 +29,8 @@ from typing import Optional
 from fastapi import HTTPException
 from pydantic import BaseModel
 
-from .db import get_db
+from supabase import create_client
+
 from .telegram_identity import get_or_create_telegram_profile
 
 MAX_AUTH_AGE_SECONDS = 24 * 60 * 60  # reject stale/replayed widget payloads
@@ -73,9 +74,16 @@ def sign_in_with_telegram(payload: TelegramAuthPayload) -> dict:
     display_name = payload.username or payload.first_name or str(payload.id)
     profile, _ = get_or_create_telegram_profile(payload.id, display_name)
 
-    db = get_db()
-    link = db.auth.admin.generate_link({"type": "magiclink", "email": profile["email"]})
-    verified = db.auth.verify_otp({"token_hash": link.properties.hashed_token, "type": "magiclink"})
+    # IMPORTANT: this must NOT run on the shared get_db() singleton. verify_otp()
+    # sets a logged-in-user session on whatever client instance calls it — on the
+    # shared client, that would silently swap every other concurrent/subsequent
+    # request's database access from service_role over to this one random user's
+    # session (breaking RLS-bypass for quota/admin/upload calls until the next
+    # such swap). A throwaway client for just this mint-and-discard dance keeps
+    # that session mutation fully isolated. Caught by testing before this shipped.
+    scratch_client = create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_SERVICE_ROLE_KEY"))
+    link = scratch_client.auth.admin.generate_link({"type": "magiclink", "email": profile["email"]})
+    verified = scratch_client.auth.verify_otp({"token_hash": link.properties.hashed_token, "type": "magiclink"})
     if not verified.session:
         raise HTTPException(status_code=500, detail="Sessiya yaratib bo'lmadi. Qaytadan urinib ko'ring.")
 

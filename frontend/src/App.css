@@ -24,6 +24,8 @@
 .quick-chat .messages-container { flex: 1; overflow-y: auto; padding: 20px; }
 .quick-chat-loading { opacity: .6; font-style: italic; }
 .quick-chat-error { color: #b3261e; background: #fdecea; border: 1px solid #f5c2be; border-radius: 8px; padding: 10px 12px; font-size: 13px; margin-top: 8px; }
+.excel-download-btn { display: flex; align-items: center; gap: 6px; margin-top: 10px; background: #fff; color: #087b40; border: 1px solid #bfe3ca; border-radius: 7px; padding: 8px 12px; font-size: 12.5px; font-weight: 600; cursor: pointer; white-space: normal; text-align: left; }
+.excel-download-btn:hover { background: #eaf5ed; }
 
 /* ─── FORMULA LIBRARY ─── */
 .formula-library { display: flex; height: 100%; gap: 0; }
