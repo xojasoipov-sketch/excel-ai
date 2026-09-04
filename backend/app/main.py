@@ -19,6 +19,7 @@ from .agent import ExcelAgent
 from .auth import authenticate_websocket, get_current_user, require_owner
 from .excel_utils import ExcelUtils
 from .quota import FREE_DAILY_LIMIT, enforce_ai_quota, quota_status
+from .telegram_login import TelegramAuthPayload, sign_in_with_telegram
 
 load_dotenv()
 
@@ -238,6 +239,16 @@ async def plans():
             "click": "soon",
         },
     }
+
+
+# ─── Auth: Telegram Login Widget ───────────────────────────────────────────────
+
+@app.post("/api/auth/telegram")
+async def auth_telegram(payload: TelegramAuthPayload):
+    """Verifies the Telegram Login Widget payload and returns a real Supabase
+    session — the frontend calls supabase.auth.setSession() with the result,
+    same as after a normal Google/email login."""
+    return sign_in_with_telegram(payload)
 
 
 # ─── Account ──────────────────────────────────────────────────────────────────

@@ -1,6 +1,9 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Navigate } from 'react-router-dom';
-import { signInWithEmail, signInWithGoogle, signUpWithEmail, supabaseConfigured } from '../lib/supabase';
+import { signInWithEmail, signInWithGoogle, signUpWithEmail, supabase, supabaseConfigured } from '../lib/supabase';
+import { API_BASE } from '../lib/api';
+
+const TELEGRAM_BOT_USERNAME = import.meta.env.VITE_TELEGRAM_BOT_USERNAME || 'excelaiuzbot';
 
 const Login = ({ session }) => {
   const [mode, setMode] = useState('signin'); // 'signin' | 'signup'
@@ -9,6 +12,58 @@ const Login = ({ session }) => {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
   const [info, setInfo] = useState(null);
+  const telegramWidgetRef = useRef(null);
+
+  // Telegram's Login Widget renders itself (as an iframe) once its script tag
+  // is on the page, and reports the signed-in user via a global callback —
+  // there's no plain-redirect alternative, this is Telegram's only supported
+  // flow for websites. The bot's domain must be registered once via
+  // @BotFather -> /setdomain, otherwise the widget shows a "bot domain
+  // invalid" error instead of the login button.
+  useEffect(() => {
+    window.onTelegramAuth = async (telegramUser) => {
+      setError(null);
+      setInfo(null);
+      setBusy(true);
+      try {
+        const response = await fetch(`${API_BASE}/api/auth/telegram`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(telegramUser),
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.detail || 'Telegram orqali kirishda xatolik.');
+
+        const { error: sessionError } = await supabase.auth.setSession({
+          access_token: data.access_token,
+          refresh_token: data.refresh_token,
+        });
+        if (sessionError) throw sessionError;
+      } catch (err) {
+        setError(err.message || 'Telegram orqali kirishda xatolik.');
+      } finally {
+        setBusy(false);
+      }
+    };
+
+    const container = telegramWidgetRef.current;
+    if (container && supabaseConfigured) {
+      const script = document.createElement('script');
+      script.src = 'https://telegram.org/js/telegram-widget.js?22';
+      script.async = true;
+      script.setAttribute('data-telegram-login', TELEGRAM_BOT_USERNAME);
+      script.setAttribute('data-size', 'large');
+      script.setAttribute('data-radius', '8');
+      script.setAttribute('data-onauth', 'onTelegramAuth(user)');
+      script.setAttribute('data-request-access', 'write');
+      container.appendChild(script);
+    }
+
+    return () => {
+      delete window.onTelegramAuth;
+      if (container) container.innerHTML = '';
+    };
+  }, []);
 
   if (session) return <Navigate to="/app" replace />;
 
@@ -68,6 +123,8 @@ const Login = ({ session }) => {
           </svg>
           Google bilan davom etish
         </button>
+
+        <div className="telegram-login-wrap" ref={telegramWidgetRef} />
 
         <div className="auth-divider"><span>yoki email bilan</span></div>
 
