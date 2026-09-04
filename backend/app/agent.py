@@ -4,6 +4,8 @@ from openai import OpenAI
 from dotenv import load_dotenv
 import json
 
+from . import config
+
 load_dotenv()
 
 class ExcelAgent:
@@ -26,14 +28,16 @@ class ExcelAgent:
                 ),
             })
 
-        fallback_key = os.getenv("GEMINI_API_KEY")
+        # Gemini's settings also resolve from the app_config table, so this key
+        # can be added/rotated without a redeploy (see app/config.py).
+        fallback_key = config.get("GEMINI_API_KEY")
         if fallback_key:
             self.providers.append({
                 "name": "gemini",
-                "model": os.getenv("GEMINI_MODEL", "gemini-3.6-flash"),
+                "model": config.get("GEMINI_MODEL", "gemini-3.6-flash"),
                 "client": OpenAI(
                     api_key=fallback_key,
-                    base_url=os.getenv(
+                    base_url=config.get(
                         "GEMINI_BASE_URL", "https://generativelanguage.googleapis.com/v1beta/openai/"
                     ),
                 ),

@@ -25,7 +25,7 @@ MIT litsenziyasi asosida moslashtirilgan.
   (1–99%) Stripe kuponiga aylanib, keyingi to‘lovda qo‘llanadi.
 
 Jadvalar: `profiles`, `uploads`, `usage_events`, `payments`, `promo_codes`,
-`promo_redemptions`, `admin_settings`.
+`promo_redemptions`, `admin_settings`, `app_config`.
 
 ## Mahalliy ishga tushirish
 
@@ -42,7 +42,7 @@ Jadvalar: `profiles`, `uploads`, `usage_events`, `payments`, `promo_codes`,
 | `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` | Supabase → Project Settings → API |
 | `OWNER_EMAIL` | Cheksiz bepul + admin huquqi shu emailga beriladi |
 | `DEEPSEEK_API_KEY`, `DEEPSEEK_BASE_URL`, `DEEPSEEK_MODEL` | Asosiy AI provayder (B.AI / DeepSeek) |
-| `GEMINI_API_KEY`, `GEMINI_BASE_URL`, `GEMINI_MODEL` | Zaxira AI provayder (Google AI Studio) — asosiysi ishlamasa (masalan kredit tugasa) shunga avtomatik o'tadi. Ixtiyoriy. |
+| `GEMINI_API_KEY`, `GEMINI_BASE_URL`, `GEMINI_MODEL` | Zaxira AI provayder (Google AI Studio) — asosiysi ishlamasa avtomatik shunga o‘tadi. Env o‘rniga Supabase `app_config` jadvalidan ham o‘qiladi (redeploy’siz almashtirish uchun). |
 | `STRIPE_SECRET_KEY`, `STRIPE_PRICE_ID`, `STRIPE_WEBHOOK_SECRET` | Stripe Dashboard (ixtiyoriy) |
 | `CARD_ENCRYPTION_KEY` | `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"` |
 | `SITE_URL` | Saytning ommaviy manzili (Stripe redirect va CORS uchun) |
