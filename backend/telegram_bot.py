@@ -7,16 +7,17 @@ Runs two ways:
     background-worker instance is needed.
 
 Feature parity with the website:
-  - Fileless formula chat and file-upload + chat (unchanged from before).
+  - Fileless formula chat and file-upload + chat.
   - The exact same free-plan daily quota, Pro/owner bypass, and `usage_events`
-    table as the site (app/quota.py) — a Telegram user and a website user share
-    one quota if they're the same account isn't required; each surface just
-    plays by the same rules.
-  - /library — search the same 24-template Formula Library (app/formula_lab.py).
-  - /test — evaluate a library template against sample or custom cell values,
-    the bot's answer to the website's Formula Test panel.
-  - /upgrade — link to the site's Pro checkout.
-  - /admin — owner-only, mirrors GET /api/admin/stats.
+    table as the site (app/quota.py).
+  - An inline-button menu (📚 Kutubxona, 💎 Narxlar, ℹ️ Yordam) — browsing the
+    24-template Formula Library and testing a formula is all tap-driven, no
+    typing commands required. /library and /test still work by hand for
+    power users.
+  - 💎 Narxlar shows the Free vs Pro comparison in-chat (not just a link out).
+  - /admin (owner-only) mirrors GET /api/admin/stats.
+  - A native Telegram "/" command menu (set via set_my_commands) so the
+    available commands are discoverable without being told about them.
 """
 import asyncio
 import logging
@@ -26,22 +27,49 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 from fastapi import HTTPException
-from telegram import Update
+from telegram import BotCommand, InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.constants import ParseMode
-from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters
+from telegram.ext import (
+    Application,
+    CallbackQueryHandler,
+    CommandHandler,
+    ContextTypes,
+    MessageHandler,
+    filters,
+)
 
 from app import admin as admin_service
 from app import formula_lab
 from app.agent import ExcelAgent
 from app.billing import PLAN_PRICE_USD, SITE_URL
 from app.excel_utils import ExcelUtils
-from app.quota import enforce_ai_quota, quota_status
+from app.quota import FREE_DAILY_LIMIT, enforce_ai_quota, quota_status
 from app.telegram_identity import get_or_create_telegram_profile
 
 load_dotenv()
 log = logging.getLogger("telegram_bot")
 
 MAX_TELEGRAM_MESSAGE = 3500  # stay under Telegram's 4096-char hard limit
+
+WELCOME_TEXT = (
+    "👋 Salom! Men *ExcelYordamchi AI* botiman.\n\n"
+    "Excel formulani o'zbekcha, ruscha yoki inglizcha yozing — masalan:\n"
+    "\"A ustundagi sonlar yig'indisini hisobla\"\n\n"
+    "Jadval faylini (XLSX/CSV) yuborsangiz, u haqida savol bera olasiz.\n\n"
+    "Quyidagi tugmalardan foydalaning 👇"
+)
+
+HELP_TEXT = (
+    "ℹ️ *Bot nima qila oladi?*\n\n"
+    "💬 *Formula so'rash* — shunchaki savolingizni yozing, formula va izoh olasiz.\n"
+    "📎 *Fayl yuborish* — XLSX/CSV yuboring, keyin fayl haqida savol bering.\n"
+    "📚 *Kutubxona* — 24 ta tayyor formula shabloni, AI kerak emas, bepul va cheksiz.\n"
+    "🧪 *Sinash* — kutubxonadagi formulani namuna (yoki o'z) qiymatlar bilan sinab ko'rish.\n"
+    "💎 *Pro* — kuniga limitsiz AI so'rov, $%s/oy.\n\n"
+    "Buyruqlar: /start /library /price /test /upgrade /help"
+) % f"{PLAN_PRICE_USD:g}"
+
+CATEGORY_LABELS = {c["id"]: c["label"] for c in formula_lab.CATEGORIES}
 
 
 def _profile(update: Update) -> dict:
@@ -51,57 +79,132 @@ def _profile(update: Update) -> dict:
 
 def _quota_denied_text(detail) -> str:
     message = detail.get("message") if isinstance(detail, dict) else str(detail)
-    return f"{message}\n\nCheksiz foydalanish: {SITE_URL}/billing"
+    return f"{message}\n\n💎 Cheksiz foydalanish: /price"
+
+
+# ─── Keyboards ──────────────────────────────────────────────────────────────
+
+def main_menu_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("📚 Formula kutubxonasi", callback_data="menu:library")],
+        [InlineKeyboardButton("💎 Narxlar / Pro", callback_data="menu:price")],
+        [InlineKeyboardButton("ℹ️ Yordam", callback_data="menu:help")],
+    ])
+
+
+def back_to_main_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([[InlineKeyboardButton("🏠 Bosh menyu", callback_data="menu:main")]])
+
+
+def category_keyboard() -> InlineKeyboardMarkup:
+    rows = [[InlineKeyboardButton(label, callback_data=f"cat:{cat_id}")] for cat_id, label in CATEGORY_LABELS.items()]
+    rows.append([InlineKeyboardButton("🏠 Bosh menyu", callback_data="menu:main")])
+    return InlineKeyboardMarkup(rows)
+
+
+def formula_list_keyboard(category_id: str) -> InlineKeyboardMarkup:
+    items = [i for i in formula_lab.FORMULA_LIBRARY if i["category"] == category_id]
+    rows = [[InlineKeyboardButton(item["name"], callback_data=f"fx:{item['id']}")] for item in items]
+    rows.append([
+        InlineKeyboardButton("🔙 Turkumlar", callback_data="menu:library"),
+        InlineKeyboardButton("🏠 Bosh menyu", callback_data="menu:main"),
+    ])
+    return InlineKeyboardMarkup(rows)
+
+
+def formula_detail_keyboard(category_id: str) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("🔙 Ushbu turkumga", callback_data=f"cat:{category_id}")],
+        [InlineKeyboardButton("🏠 Bosh menyu", callback_data="menu:main")],
+    ])
+
+
+def price_keyboard(show_upgrade: bool) -> InlineKeyboardMarkup:
+    rows = []
+    if show_upgrade:
+        rows.append([InlineKeyboardButton(f"💳 Pro'ga o'tish — ${PLAN_PRICE_USD:g}/oy", url=f"{SITE_URL}/billing")])
+    rows.append([InlineKeyboardButton("🏠 Bosh menyu", callback_data="menu:main")])
+    return InlineKeyboardMarkup(rows)
+
+
+def price_text(profile: dict) -> str:
+    status = quota_status(profile)
+    if status["unlimited"]:
+        current = "✅ Sizda hozir *cheksiz* foydalanish huquqi bor."
+    else:
+        current = f"Sizda hozir: bugun {status['remaining']} / {status['limit']} bepul so'rov qoldi."
+    return (
+        "💎 *Narxlar*\n\n"
+        f"🆓 *Bepul* — kuniga {FREE_DAILY_LIMIT} ta AI so'rov, formula kutubxonasi va sinash rejimi cheksiz.\n\n"
+        f"💎 *Pro — ${PLAN_PRICE_USD:g}/oy* — cheksiz AI so'rov, cheksiz fayl tahlili.\n\n"
+        "To'lov: 💳 Karta (Visa/Mastercard). Payme va Click — tez orada.\n\n"
+        f"{current}"
+    )
+
+
+def _formula_result_text(item: dict, cells: dict, overrides_used: bool) -> str:
+    ok, result = formula_lab.evaluate(item["id"], cells)
+    cells_line = ", ".join(f"{k}={v}" for k, v in cells.items() if v not in (None, "")) or "(bo'sh)"
+    status_line = "sizning qiymatlaringiz bilan" if overrides_used else "namuna qiymatlar bilan"
+    body = f"✅ Natija: `{result}`" if ok else f"⚠️ {result}"
+    return (
+        f"*{item['name']}*\n`{item['formula']}`\n{item['description']}\n\n"
+        f"Katakchalar ({status_line}): {cells_line}\n\n{body}\n\n"
+        f"Boshqa qiymat bilan sinash: `/test {item['id']} A1=... B1=...`"
+    )
 
 
 # ─── Commands ───────────────────────────────────────────────────────────────
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    _profile(update)  # ensure a profile row exists from the first contact
+    await update.message.reply_text(WELCOME_TEXT, parse_mode=ParseMode.MARKDOWN, reply_markup=main_menu_keyboard())
+
+
+async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    await update.message.reply_text(HELP_TEXT, parse_mode=ParseMode.MARKDOWN, reply_markup=back_to_main_keyboard())
+
+
+async def price_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     profile = _profile(update)
-    status = quota_status(profile)
-    quota_line = (
-        "Cheksiz so'rov huquqingiz bor. 🎉" if status["unlimited"]
-        else f"Bugun qoldi: {status['remaining']} / {status['limit']} bepul so'rov."
-    )
+    show_upgrade = not (profile.get("is_owner") or profile.get("plan") == "pro")
     await update.message.reply_text(
-        "Salom! Men ExcelYordamchi AI botiman.\n\n"
-        "Excel formulani o'zbekcha, ruscha yoki inglizcha yozing — masalan:\n"
-        "\"A ustundagi sonlar yig'indisini hisobla\"\n\n"
-        "Jadval faylini (XLSX/CSV) yuborsangiz, u haqida savol bera olasiz.\n\n"
-        "Buyruqlar:\n"
-        "/library — 24 ta tayyor formula shabloni\n"
-        "/test — formulani namuna ma'lumot ustida sinash\n"
-        "/upgrade — cheksiz Pro reja\n\n"
-        f"{quota_line}"
+        price_text(profile), parse_mode=ParseMode.MARKDOWN, reply_markup=price_keyboard(show_upgrade)
     )
 
 
 async def library(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = " ".join(context.args) if context.args else ""
+    if not query:
+        await update.message.reply_text("📚 Qaysi turkum kerak?", reply_markup=category_keyboard())
+        return
+
     results = formula_lab.search_library(query)[:8]
     if not results:
         await update.message.reply_text("Hech narsa topilmadi. Masalan: /library sumif")
         return
 
-    lines = [f"🔎 «{query}» bo'yicha natijalar:" if query else "📚 Formula kutubxonasi (birinchi 8 ta):"]
+    lines = [f"🔎 «{query}» bo'yicha natijalar:"]
     for item in results:
         lines.append(f"\n*{item['name']}*\n`{item['formula']}`\n{item['description']}\n/test {item['id']}")
-    lines.append("\n\nBoshqa mavzu qidirish uchun: /library <so'z>")
-    await update.message.reply_text("\n".join(lines), parse_mode=ParseMode.MARKDOWN)
+    await update.message.reply_text(
+        "\n".join(lines), parse_mode=ParseMode.MARKDOWN, reply_markup=back_to_main_keyboard()
+    )
 
 
 async def test_formula(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if not context.args:
         await update.message.reply_text(
             "Foydalanish: /test <formula_id> [A1=qiymat B1=qiymat ...]\n"
-            "Shablon ID'larini ko'rish uchun: /library"
+            "Shablonlarni ko'rish uchun: /library",
+            reply_markup=category_keyboard(),
         )
         return
 
     formula_id = context.args[0]
     item = formula_lab.find_by_id(formula_id)
     if not item:
-        await update.message.reply_text(f"«{formula_id}» topilmadi. /library orqali qidiring.")
+        await update.message.reply_text(f"«{formula_id}» topilmadi.", reply_markup=category_keyboard())
         return
 
     cells = dict(item["sample"])
@@ -113,31 +216,15 @@ async def test_formula(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         cells[key.strip().upper()] = value.strip()
         overrides_used = True
 
-    ok, result = formula_lab.evaluate(formula_id, cells)
-    cells_line = ", ".join(f"{k}={v}" for k, v in cells.items()) or "(bo'sh)"
-    status_line = "sizning qiymatlaringiz bilan" if overrides_used else "namuna qiymatlar bilan"
-    if ok:
-        await update.message.reply_text(
-            f"*{item['name']}*\n`{item['formula']}`\n\n"
-            f"Katakchalar ({status_line}): {cells_line}\n\n"
-            f"✅ Natija: `{result}`\n\n"
-            f"Boshqa qiymat bilan sinash: /test {formula_id} A1=... B1=...",
-            parse_mode=ParseMode.MARKDOWN,
-        )
-    else:
-        await update.message.reply_text(f"Xato: {result}")
+    await update.message.reply_text(
+        _formula_result_text(item, cells, overrides_used),
+        parse_mode=ParseMode.MARKDOWN,
+        reply_markup=formula_detail_keyboard(item["category"]),
+    )
 
 
 async def upgrade(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    profile = _profile(update)
-    if profile.get("is_owner") or profile.get("plan") == "pro":
-        await update.message.reply_text("Sizda allaqachon cheksiz foydalanish huquqi bor. ✅")
-        return
-    await update.message.reply_text(
-        f"Pro reja — ${PLAN_PRICE_USD:g}/oy: cheksiz AI formula so'rovlari va fayl tahlili.\n\n"
-        f"Obuna bo'lish uchun saytga kiring: {SITE_URL}/billing\n"
-        "(Google akkaunt bilan bir bosishda ro'yxatdan o'tasiz.)"
-    )
+    await price_command(update, context)
 
 
 async def admin_stats(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -160,6 +247,42 @@ async def admin_stats(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     )
 
 
+# ─── Inline button taps ─────────────────────────────────────────────────────
+
+async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    await query.answer()
+    data = query.data or ""
+
+    if data == "menu:main":
+        await query.edit_message_text(WELCOME_TEXT, parse_mode=ParseMode.MARKDOWN, reply_markup=main_menu_keyboard())
+    elif data == "menu:library":
+        await query.edit_message_text("📚 Qaysi turkum kerak?", reply_markup=category_keyboard())
+    elif data == "menu:help":
+        await query.edit_message_text(HELP_TEXT, parse_mode=ParseMode.MARKDOWN, reply_markup=back_to_main_keyboard())
+    elif data == "menu:price":
+        profile = _profile(update)
+        show_upgrade = not (profile.get("is_owner") or profile.get("plan") == "pro")
+        await query.edit_message_text(
+            price_text(profile), parse_mode=ParseMode.MARKDOWN, reply_markup=price_keyboard(show_upgrade)
+        )
+    elif data.startswith("cat:"):
+        category_id = data.split(":", 1)[1]
+        label = CATEGORY_LABELS.get(category_id, category_id)
+        await query.edit_message_text(f"📚 {label}:", reply_markup=formula_list_keyboard(category_id))
+    elif data.startswith("fx:"):
+        formula_id = data.split(":", 1)[1]
+        item = formula_lab.find_by_id(formula_id)
+        if not item:
+            await query.edit_message_text("Topilmadi.", reply_markup=category_keyboard())
+            return
+        await query.edit_message_text(
+            _formula_result_text(item, dict(item["sample"]), overrides_used=False),
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=formula_detail_keyboard(item["category"]),
+        )
+
+
 # ─── Formula chat (fileless) ────────────────────────────────────────────────
 
 async def answer_formula(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -167,7 +290,7 @@ async def answer_formula(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     try:
         enforce_ai_quota(profile)
     except HTTPException as limit_error:
-        await update.message.reply_text(_quota_denied_text(limit_error.detail))
+        await update.message.reply_text(_quota_denied_text(limit_error.detail), reply_markup=back_to_main_keyboard())
         return
 
     await update.message.chat.send_action("typing")
@@ -238,7 +361,7 @@ async def answer_data_question(update: Update, context: ContextTypes.DEFAULT_TYP
     try:
         enforce_ai_quota(profile)
     except HTTPException as limit_error:
-        await update.message.reply_text(_quota_denied_text(limit_error.detail))
+        await update.message.reply_text(_quota_denied_text(limit_error.detail), reply_markup=back_to_main_keyboard())
         return
 
     history = context.chat_data["history"]
@@ -258,17 +381,34 @@ async def answer_data_question(update: Update, context: ContextTypes.DEFAULT_TYP
 
 # ─── Wiring ─────────────────────────────────────────────────────────────────
 
+async def _post_init(application: Application) -> None:
+    """Populates Telegram's native "/" command menu. /admin is deliberately left
+    out of the public menu since it's owner-only."""
+    await application.bot.set_my_commands([
+        BotCommand("start", "Bosh menyu"),
+        BotCommand("library", "Formula kutubxonasi"),
+        BotCommand("price", "Narxlar va Pro reja"),
+        BotCommand("test", "Formulani sinash"),
+        BotCommand("upgrade", "Pro'ga o'tish"),
+        BotCommand("help", "Yordam"),
+    ])
+
+
 def build_application() -> Application:
     token = os.getenv("TELEGRAM_BOT_TOKEN")
     if not token:
         raise RuntimeError("Set TELEGRAM_BOT_TOKEN in backend/.env first.")
-    application = Application.builder().token(token).build()
+    application = Application.builder().token(token).post_init(_post_init).build()
     application.bot_data["agent"] = ExcelAgent()
     application.add_handler(CommandHandler("start", start))
+    application.add_handler(CommandHandler("help", help_command))
+    application.add_handler(CommandHandler("price", price_command))
+    application.add_handler(CommandHandler("narxlar", price_command))
     application.add_handler(CommandHandler("library", library))
     application.add_handler(CommandHandler("test", test_formula))
     application.add_handler(CommandHandler("upgrade", upgrade))
     application.add_handler(CommandHandler("admin", admin_stats))
+    application.add_handler(CallbackQueryHandler(on_callback))
     application.add_handler(MessageHandler(filters.Document.ALL, handle_spreadsheet))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, answer_data_question))
     return application
@@ -287,6 +427,8 @@ async def start_in_background() -> None:
         return
     application = build_application()
     await application.initialize()
+    if application.post_init:
+        await application.post_init(application)
     await application.start()
     await application.updater.start_polling(drop_pending_updates=True)
     _embedded_application = application
