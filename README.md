@@ -41,7 +41,8 @@ Jadvalar: `profiles`, `uploads`, `usage_events`, `payments`, `promo_codes`,
 |---|---|
 | `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` | Supabase → Project Settings → API |
 | `OWNER_EMAIL` | Cheksiz bepul + admin huquqi shu emailga beriladi |
-| `DEEPSEEK_API_KEY`, `DEEPSEEK_BASE_URL`, `DEEPSEEK_MODEL` | AI provayder (B.AI / DeepSeek) |
+| `DEEPSEEK_API_KEY`, `DEEPSEEK_BASE_URL`, `DEEPSEEK_MODEL` | Asosiy AI provayder (B.AI / DeepSeek) |
+| `GEMINI_API_KEY`, `GEMINI_BASE_URL`, `GEMINI_MODEL` | Zaxira AI provayder (Google AI Studio) — asosiysi ishlamasa (masalan kredit tugasa) shunga avtomatik o'tadi. Ixtiyoriy. |
 | `STRIPE_SECRET_KEY`, `STRIPE_PRICE_ID`, `STRIPE_WEBHOOK_SECRET` | Stripe Dashboard (ixtiyoriy) |
 | `CARD_ENCRYPTION_KEY` | `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"` |
 | `SITE_URL` | Saytning ommaviy manzili (Stripe redirect va CORS uchun) |

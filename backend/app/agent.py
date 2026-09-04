@@ -8,16 +8,42 @@ load_dotenv()
 
 class ExcelAgent:
     def __init__(self):
-        # DeepSeek exposes an OpenAI-compatible Chat Completions API. Keeping the
-        # base URL configurable also makes a future provider change painless.
-        self.api_key = os.getenv("DEEPSEEK_API_KEY")
-        if not self.api_key:
-            raise RuntimeError("DEEPSEEK_API_KEY is not configured. Add it to backend/.env.")
-        self.model = os.getenv("DEEPSEEK_MODEL", "deepseek-chat")
-        self.client = OpenAI(
-            api_key=self.api_key,
-            base_url=os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com"),
-        )
+        # Both DeepSeek/B.AI and Gemini expose an OpenAI-compatible Chat
+        # Completions API, so both providers are just (client, model) pairs here.
+        # DeepSeek/B.AI is primary; Gemini (if configured) is a fallback that
+        # kicks in automatically when the primary call fails (e.g. the primary
+        # account runs out of credit) — see _create_completion.
+        self.providers = []
+
+        primary_key = os.getenv("DEEPSEEK_API_KEY")
+        if primary_key:
+            self.providers.append({
+                "name": "deepseek",
+                "model": os.getenv("DEEPSEEK_MODEL", "deepseek-chat"),
+                "client": OpenAI(
+                    api_key=primary_key,
+                    base_url=os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com"),
+                ),
+            })
+
+        fallback_key = os.getenv("GEMINI_API_KEY")
+        if fallback_key:
+            self.providers.append({
+                "name": "gemini",
+                "model": os.getenv("GEMINI_MODEL", "gemini-3.6-flash"),
+                "client": OpenAI(
+                    api_key=fallback_key,
+                    base_url=os.getenv(
+                        "GEMINI_BASE_URL", "https://generativelanguage.googleapis.com/v1beta/openai/"
+                    ),
+                ),
+            })
+
+        if not self.providers:
+            raise RuntimeError(
+                "No AI provider configured. Set DEEPSEEK_API_KEY and/or GEMINI_API_KEY in backend/.env."
+            )
+
         self.tools = [
             {
                 "type": "function",
@@ -218,16 +244,27 @@ class ExcelAgent:
             }
         ]
 
+    def _create_completion(self, **kwargs):
+        """Tries each configured provider in order (DeepSeek/B.AI first, then
+        Gemini) and returns the first one that succeeds. Only raises once every
+        provider has failed, so a single account running dry or being briefly
+        down doesn't take the whole assistant down with it."""
+        last_error = None
+        for provider in self.providers:
+            try:
+                return provider["client"].chat.completions.create(model=provider["model"], **kwargs)
+            except Exception as e:
+                print(f"AI provider '{provider['name']}' failed ({e}); trying next provider if configured.")
+                last_error = e
+        raise last_error
+
     def quick_chat(self, message_history: List[Dict[str, Any]]) -> str:
         """
         Plain formula-chat with no uploaded file and no tools: the user describes
         their columns in words and the model replies with a formula. Used by the
         fileless "Chat rejimi" described in the product concept.
         """
-        response = self.client.chat.completions.create(
-            model=self.model,
-            messages=message_history,
-        )
+        response = self._create_completion(messages=message_history)
         return response.choices[0].message.content
 
     def call_agent(self, message_history: List[Dict[str, Any]], excel_utils):
@@ -239,12 +276,7 @@ class ExcelAgent:
         excel_modified = False
 
         while True:
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=all_messages,
-                tools=self.tools,
-                tool_choice="auto"
-            )
+            response = self._create_completion(messages=all_messages, tools=self.tools, tool_choice="auto")
             msg = response.choices[0].message
 
             if msg.tool_calls:
