@@ -1,4 +1,3 @@
-import os
 from typing import List, Dict, Any
 from openai import OpenAI
 from dotenv import load_dotenv
@@ -8,45 +7,57 @@ from . import config
 
 load_dotenv()
 
+# Every provider here speaks the OpenAI-compatible Chat Completions API, so each
+# is just a (client, model) pair. They're tried in this order and the first one
+# that answers wins (see _create_completion), so a provider running out of credit
+# or going down no longer takes the assistant with it. A provider whose API key
+# isn't configured is simply skipped.
+#
+# Each setting resolves from the environment first, then the `app_config` table
+# (app/config.py) — so a key can be added or rotated without a redeploy.
+PROVIDER_SPECS = [
+    {
+        "name": "deepseek",
+        "key": "DEEPSEEK_API_KEY",
+        "base_url": ("DEEPSEEK_BASE_URL", "https://api.deepseek.com"),
+        "model": ("DEEPSEEK_MODEL", "deepseek-chat"),
+    },
+    {
+        "name": "gemini",
+        "key": "GEMINI_API_KEY",
+        "base_url": ("GEMINI_BASE_URL", "https://generativelanguage.googleapis.com/v1beta/openai/"),
+        "model": ("GEMINI_MODEL", "gemini-3.6-flash"),
+    },
+    {
+        "name": "openrouter",
+        "key": "OPENROUTER_API_KEY",
+        "base_url": ("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1"),
+        "model": ("OPENROUTER_MODEL", "deepseek/deepseek-chat"),
+    },
+]
+
+
 class ExcelAgent:
     def __init__(self):
-        # Both DeepSeek/B.AI and Gemini expose an OpenAI-compatible Chat
-        # Completions API, so both providers are just (client, model) pairs here.
-        # DeepSeek/B.AI is primary; Gemini (if configured) is a fallback that
-        # kicks in automatically when the primary call fails (e.g. the primary
-        # account runs out of credit) — see _create_completion.
         self.providers = []
-
-        primary_key = os.getenv("DEEPSEEK_API_KEY")
-        if primary_key:
+        for spec in PROVIDER_SPECS:
+            api_key = config.get(spec["key"])
+            if not api_key:
+                continue
+            base_url_var, base_url_default = spec["base_url"]
+            model_var, model_default = spec["model"]
             self.providers.append({
-                "name": "deepseek",
-                "model": os.getenv("DEEPSEEK_MODEL", "deepseek-chat"),
+                "name": spec["name"],
+                "model": config.get(model_var, model_default),
                 "client": OpenAI(
-                    api_key=primary_key,
-                    base_url=os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com"),
-                ),
-            })
-
-        # Gemini's settings also resolve from the app_config table, so this key
-        # can be added/rotated without a redeploy (see app/config.py).
-        fallback_key = config.get("GEMINI_API_KEY")
-        if fallback_key:
-            self.providers.append({
-                "name": "gemini",
-                "model": config.get("GEMINI_MODEL", "gemini-3.6-flash"),
-                "client": OpenAI(
-                    api_key=fallback_key,
-                    base_url=config.get(
-                        "GEMINI_BASE_URL", "https://generativelanguage.googleapis.com/v1beta/openai/"
-                    ),
+                    api_key=api_key,
+                    base_url=config.get(base_url_var, base_url_default),
                 ),
             })
 
         if not self.providers:
-            raise RuntimeError(
-                "No AI provider configured. Set DEEPSEEK_API_KEY and/or GEMINI_API_KEY in backend/.env."
-            )
+            configured = ", ".join(spec["key"] for spec in PROVIDER_SPECS)
+            raise RuntimeError(f"No AI provider configured. Set one of: {configured}.")
 
         self.tools = [
             {
