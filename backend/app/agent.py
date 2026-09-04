@@ -17,10 +17,12 @@ load_dotenv()
 # (app/config.py) — so a key can be added or rotated without a redeploy.
 PROVIDER_SPECS = [
     {
-        "name": "deepseek",
-        "key": "DEEPSEEK_API_KEY",
-        "base_url": ("DEEPSEEK_BASE_URL", "https://api.deepseek.com"),
-        "model": ("DEEPSEEK_MODEL", "deepseek-chat"),
+        # Primary: a funded OpenRouter account. Kept first so requests don't
+        # burn a failed round-trip on a provider whose balance has run dry.
+        "name": "openrouter",
+        "key": "OPENROUTER_API_KEY",
+        "base_url": ("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1"),
+        "model": ("OPENROUTER_MODEL", "deepseek/deepseek-v4-flash:floor"),
     },
     {
         "name": "gemini",
@@ -29,10 +31,12 @@ PROVIDER_SPECS = [
         "model": ("GEMINI_MODEL", "gemini-3.6-flash"),
     },
     {
-        "name": "openrouter",
-        "key": "OPENROUTER_API_KEY",
-        "base_url": ("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1"),
-        "model": ("OPENROUTER_MODEL", "deepseek/deepseek-chat"),
+        # B.AI/DeepSeek direct — last, since its balance is currently empty.
+        # Still worth keeping: it starts working again the moment it's topped up.
+        "name": "deepseek",
+        "key": "DEEPSEEK_API_KEY",
+        "base_url": ("DEEPSEEK_BASE_URL", "https://api.deepseek.com"),
+        "model": ("DEEPSEEK_MODEL", "deepseek-chat"),
     },
 ]
 
